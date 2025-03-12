@@ -4,16 +4,11 @@ This repository provides an implementation of privacy-aware Gaussian processes b
 
 # Usage
 To reproduce the experiments, run the following commands step by step in your terminal:
-1.  Clone the repository
-```bash
-git clone https://github.com/hchen19/privacygp.git
-```
 
-2. Create virtual environment and install necessary packages
+1.  Clone the repository or download the folder, ensure you are in the [privacygp](/) directory
+
+2. Install necessary packages
 ```bash
-cd privacygp
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
