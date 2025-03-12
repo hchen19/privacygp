@@ -391,7 +391,7 @@ class SDP:
         })
         
         # Save example1 result
-        np.save(os.path.join(self.data_dir, 'example.npy'), result1['optimal_solution'])
+        np.save(os.path.join(self.results_dir, 'example.npy'), result1['optimal_solution'])
         
         # Return the kernel matrix and grid for visualization
         return kernel_matrix, result1['optimal_solution'], x_grid
