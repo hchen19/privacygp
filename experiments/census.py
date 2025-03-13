@@ -924,7 +924,7 @@ def plot_privacy_results(
         'dp-cloaking': {'color': 'brown', 'style': '--', 'label': 'DP-Cloaking GP', 'alpha': 0.2},
         'dp-standard': {'color': 'yellow', 'style': '-.', 'label': 'Standard DP GP', 'alpha': 0.2},
         'exclude': {'color': 'darkorange', 'style': '--', 'label': 'GP for non-private data (Dropout)', 'alpha': 0.1},
-        'attack': {'color': 'darkviolet', 'style': '--', 'label': 'Noisy GP for obfuscated data (Attack)', 'alpha': 0.1},
+        'attack': {'color': 'darkviolet', 'style': '--', 'label': 'Stationary GP for obfuscated data (Stationary)', 'alpha': 0.1},
     }
     
     # DP epsilon colors
@@ -1151,7 +1151,7 @@ def plot_privacy_results(
             handles, labels = axes[0].get_legend_handles_labels()
             fig.legend(
                 handles, labels, loc='lower center', bbox_to_anchor=(0.5, -0.1), 
-                ncol=min(3, len(handles)), fontsize=16,
+                ncol=min(3, len(handles)), fontsize=14.5,
             )
             
             # For the title, use more descriptive feature name

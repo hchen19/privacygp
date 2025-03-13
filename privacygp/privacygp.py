@@ -119,13 +119,13 @@ class PrivacyGP(torch.nn.Module):
             self.train()
 
         ##########################################################
-        # Compute cov_xx_privacy = G(S) = K_XS (K_SS - H_SS)^{-1} K_SX in the paper
+        # Compute cov_xx_privacy = G(S) = K_XS H_SS^{-1} K_SX in the paper
         ##########################################################
         # H_SS = alpha * K_SS
-        # G(S) =  K_XS [(1-alpha) *K_SS ]^{-1} K_SX
+        # G(S) =  K_XS [(alpha) *K_SS ]^{-1} K_SX
         self.train_x_privacy = self.train_x[self.params['privacy_idx']]
         self.train_y_privacy = self.train_y[self.params['privacy_idx']]
-        cov_xprivacy_xprivacy = (1 - self.params['alpha']) * self.gpmodel.covar_module(self.train_x_privacy, self.train_x_privacy)
+        cov_xprivacy_xprivacy = self.params['alpha'] * self.gpmodel.covar_module(self.train_x_privacy, self.train_x_privacy)
         cov_x_xprivacy = self.gpmodel.covar_module(self.train_x, self.train_x_privacy)
         if self.train_x_privacy.size(-2) < 1e3:
             cov_xx_privacy = cov_x_xprivacy @ cov_xprivacy_xprivacy.solve(
