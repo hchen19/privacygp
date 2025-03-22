@@ -1,8 +1,0 @@
-tqdm
-torch
-gpytorch
-torchdiffeq
-numpy
-matplotlib
-scipy
-cvxpy

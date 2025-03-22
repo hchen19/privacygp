@@ -7,9 +7,9 @@ To reproduce the experiments, run the following commands step by step in your te
 
 1.  Clone the repository or download the folder, ensure you are in the [privacygp](/) directory
 
-2. Install necessary packages
+2. Install dependencies from `setup.py`
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 3. Run the experiments
