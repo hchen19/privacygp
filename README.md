@@ -2,22 +2,32 @@
 This repository provides an implementation of privacy-aware Gaussian processes built on [PyTorch](https://pytorch.org).
 
 
+# Requirements
+- Python >= 3.9
+- Dependencies are managed through `setup.py`
+
 # Usage
 To reproduce the experiments, run the following commands step by step in your terminal:
 
-1.  Clone the repository or download the folder, ensure you are in the [privacygp](/) directory
+1. Clone the repository or download the folder, ensure you are in the [privacygp](/) directory
 
-2. Upgrade pip and setuptools
+2. Create and activate a virtual environment:
 ```bash
-pip install --upgrade pip setuptools
+python -m venv .env
+source .env/bin/activate
 ```
 
-3. Install dependencies from `setup.py`
+3. Upgrade pip and setuptools to ensure compatibility:
+```bash
+pip install --upgrade pip setuptools wheel
+```
+
+4. Install the package and all dependencies:
 ```bash
 pip install .
 ```
 
-3. Run the experiments
+5. Run the experiments
 
 - Ensure that you are in the [privacygp](/) directory and that it is included in your `PYTHONPATH` environment variable. You can do this by running:
     ```bash
@@ -43,7 +53,7 @@ pip install .
     ```
 
 ### Real-world application (Census dataset)
-- To reproduce the real-world application on the [PUMS Data](https://www.census.gov/programs-surveys/acs/microdata/access.html) provided by [the U.S. Census Bureau](https://www.census.gov/) in Figure 6. 7 and Table 3, run the following command
+- To reproduce the real-world application on the [PUMS Data](https://www.census.gov/programs-surveys/acs/microdata/access.html) provided by [the U.S. Census Bureau](https://www.census.gov/) in Figure 6, 7 and Table 3, run the following command
     ```bash
     python experiments/census.py
     ```

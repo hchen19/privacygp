@@ -6,8 +6,8 @@ setup(
     packages=["privacygp", "experiments"],
     python_requires=">=3.9",
     install_requires=[
-        "tqdm==4.66.3",  # Updated from 4.65.0 to fix CLI arguments injection vulnerability
-        "torch==2.4.0",  # Need to update beyond 2.3.1 to address RPC deserialization vulnerability
+        "tqdm==4.66.3",
+        "torch==2.4.0",
         "gpytorch==1.13",
         "torchdiffeq==0.2.5",
         "numpy==1.26.4",
