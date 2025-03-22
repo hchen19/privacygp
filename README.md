@@ -7,7 +7,12 @@ To reproduce the experiments, run the following commands step by step in your te
 
 1.  Clone the repository or download the folder, ensure you are in the [privacygp](/) directory
 
-2. Install dependencies from `setup.py`
+2. Upgrade pip and setuptools
+```bash
+pip install --upgrade pip setuptools
+```
+
+3. Install dependencies from `setup.py`
 ```bash
 pip install .
 ```
