@@ -244,7 +244,7 @@ class SDP:
         fig, axes = plt.subplots(1, 3, figsize=(5*3, 5))
         
         # First subplot - Correlation plot of S matrix
-        self.plot_corrplot(s_matrix, axes[0], title="Optimal covariance matrix $\Sigma_{opt}$")
+        self.plot_corrplot(s_matrix, axes[0], title=r"Optimal covariance matrix $\Sigma_{opt}$")
         
         # Second subplot - Barplot of diagonal values
         diag_var_proposed = np.diag(s_matrix)

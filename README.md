@@ -3,8 +3,8 @@ This repository provides an implementation of privacy-aware Gaussian processes b
 
 
 # Requirements
-- Python >= 3.9
-- Dependencies are managed through `setup.py`
+- Python >= 3.10
+- Dependencies are managed through `pyproject.toml`
 
 # Usage
 To reproduce the experiments, run the following commands step by step in your terminal:
@@ -28,11 +28,6 @@ pip install .
 ```
 
 5. Run the experiments
-
-- Ensure that you are in the [privacygp](/) directory and that it is included in your `PYTHONPATH` environment variable. You can do this by running:
-    ```bash
-    export PYTHONPATH="$PWD"
-    ```
 
 ## Example
 - To reproduce the example 1 in Figure 1, run the following command

@@ -13,6 +13,7 @@ from privacygp.privacygp import PrivacyGP
 from privacygp.dpgp import DPGP
 from privacygp.excludegp import ExcludeGP
 from privacygp.noisygp import NoisyGP
+from privacygp.nonprivategp import NonPrivateGP
 
 
 # Setup directories
@@ -1017,7 +1018,7 @@ def plot_privacy_results(
             for alg in dp_algs:
                 for i, eps in enumerate(epsilons):
                     # Create label with epsilon and delta values
-                    custom_label = f'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
+                    custom_label = rf'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
                     custom_color = eps_colors[i % len(eps_colors)]
                     
                     # Add predictions
@@ -1066,7 +1067,7 @@ def plot_privacy_results(
             for alg in dp_algs:
                 for i, eps in enumerate(epsilons):
                     # Create label with epsilon and delta values
-                    custom_label = f'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
+                    custom_label = rf'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
                     custom_color = eps_colors[i % len(eps_colors)]
                     
                     # Add predictions
@@ -1173,7 +1174,7 @@ def plot_privacy_results(
                         axins.set_ylim(y_min - y_padding, y_max + y_padding)
                     
                     # Add a title to the inset axes
-                    axins.set_title(f"Zoomed Region $T/T_{{orb}} \in $[{zoom_start}, {zoom_end}]", fontsize=12)
+                    axins.set_title(rf"Zoomed Region $T/T_{{orb}} \in $[{zoom_start}, {zoom_end}]", fontsize=12)
                     
                     # Add a light box in the main figure showing what's being zoomed
                     # Use light gray instead of blue
@@ -1264,9 +1265,466 @@ def run(
     return aggregate_metrics, csv_path, seed_results
 
 
+############################################################
+# PLOT TYPE 3: Privacy-aware figures averaged over multiple seeds
+############################################################
+def plot_averaged_privacy_results(
+        test_x=None,
+        seeds=range(10),  # Seeds to average over
+        alphas=[0.1, 0.5],
+        confidence_level=0.95,
+        sampling_interval=5,
+        run_again=False,
+    ):
+    """Create separate plots for predictions and MSE showing privacy-aware GP results averaged over multiple seeds."""
+    
+    # Convert seeds to list for consistent handling
+    seeds_list = list(seeds)
+    
+    print(f"Creating averaged plots using {len(seeds_list)} seeds: {seeds_list[:10]}{'...' if len(seeds_list) > 10 else ''}")
+    
+    # Load results
+    results_path = os.path.join(results_dir, 'satellite_all_results.pkl')
+    
+    if not os.path.exists(results_path):
+        print(f"Error: Results file not found at {results_path}")
+        print("Please run experiments first before creating averaged plots.")
+        return None
+    
+    # Load saved results
+    with open(results_path, 'rb') as f:
+        all_results = pickle.load(f)
+    
+    # Filter results for specified seeds
+    seed_results = [r for r in all_results if r['seed'] in seeds_list]
+    
+    print(f"Found {len(seed_results)} results out of {len(seeds_list)} requested seeds")
+    
+    if not seed_results:
+        print(f"No results found for specified seeds {seeds_list[:10]}...")
+        available_seeds = [r['seed'] for r in all_results if 'seed' in r]
+        print(f"Available seeds in results: {sorted(available_seeds)[:20]}...")
+        return None
+    
+    if len(seed_results) < len(seeds_list):
+        found_seeds = [r['seed'] for r in seed_results]
+        missing_seeds = set(seeds_list) - set(found_seeds)
+        print(f"Warning: Only found {len(seed_results)} out of {len(seeds_list)} requested seeds")
+        print(f"Missing seeds: {sorted(missing_seeds)[:10]}{'...' if len(missing_seeds) > 10 else ''}")
+    
+    # Extract common data from first result
+    first_result = seed_results[0]
+    test_x_np = first_result['test_x'].numpy().flatten()
+    component_names = [r'$r/R_e$', r'$\dot{r}/\bar{v}$', r'$\theta$ (rad)', r'$\dot{\theta}$ (rad/s)']
+    n_components = len(first_result['train_data'])
+    
+    # Get nonprivate GP baseline once
+    data = get_satellite_data()
+    train_x = torch.tensor(data['time'][::sampling_interval], dtype=torch.float32).view(-1, 1)
+    test_x_tensor = torch.linspace(0, 3, 301).view(-1, 1)[::sampling_interval] if test_x is None else test_x
+    
+    # Process each alpha value
+    for alpha in alphas:
+        print(f"Processing alpha={alpha}")
+        
+        # Pre-compute shared data for this alpha
+        train_data = first_result['train_data'][0]  # Use first component for train data
+        train_x_np = train_data['x'].numpy().flatten()
+        train_y_all_components = []
+        nonprivate_means_all_components = []
+        nonprivate_percentile_bounds_all_components = []
+        privacy_means_all_components = []
+        privacy_percentile_bounds_all_components = []
+        privacy_mse_means_all_components = []
+        privacy_mse_percentile_bounds_all_components = []
+        
+        # Collect data for all components
+        for comp_idx in range(n_components):
+            train_data = first_result['train_data'][comp_idx]
+            train_y_np = train_data['y'].numpy()
+            train_y_all_components.append(train_y_np)
+            
+            # Train non-private GP baseline
+            print(f"Training non-private GP for component {comp_idx}")
+            train_y_comp = torch.tensor(data['states'][:, comp_idx][::sampling_interval], dtype=torch.float32)
+            nonprivate_gp = NonPrivateGP(
+                train_x=train_x,
+                train_y=train_y_comp,
+                train=True,
+                noiseless=False,
+                noise=0.0025,
+                lengthscale=0.7,
+                outputscale=1.0,
+                mean_constant=0.0,
+                num_epochs=80,
+                fix_lengthscale=False,
+                normalize=True,
+                use_analytical_mle=False,
+                zero_mean=False,
+            )
+            nonprivate_mean, nonprivate_cov = nonprivate_gp.test(test_x_tensor)
+            nonprivate_mean_np = nonprivate_mean.detach().cpu().numpy()
+            nonprivate_std_np = nonprivate_cov.diag().sqrt().detach().cpu().numpy()
+            
+            # For non-private GP, use standard confidence intervals since it's a single model
+            nonprivate_lower = nonprivate_mean_np - 1.96 * nonprivate_std_np
+            nonprivate_upper = nonprivate_mean_np + 1.96 * nonprivate_std_np
+            nonprivate_means_all_components.append(nonprivate_mean_np)
+            nonprivate_percentile_bounds_all_components.append((nonprivate_lower, nonprivate_upper))
+            
+            # Collect privacy-aware predictions for averaging and MSE calculation
+            pred_means_all_seeds = []
+            for result in seed_results:
+                if ('privacy-aware' in result['preds'] and alpha in result['preds']['privacy-aware'] and 
+                    comp_idx in result['preds']['privacy-aware'][alpha]):
+                    preds = result['preds']['privacy-aware'][alpha][comp_idx]
+                    if preds:
+                        pred_means_all_seeds.append(preds['mean'].numpy())
+            
+            if pred_means_all_seeds:
+                pred_means_array = np.array(pred_means_all_seeds)
+                mean_of_means = pred_means_array.mean(axis=0)
+                
+                # Use 95% percentile bounds (removing largest and smallest 2.5%)
+                percentile_lower = np.percentile(pred_means_array, 2.5, axis=0)
+                percentile_upper = np.percentile(pred_means_array, 97.5, axis=0)
+                
+                privacy_means_all_components.append(mean_of_means)
+                privacy_percentile_bounds_all_components.append((percentile_lower, percentile_upper))
+                
+                # Calculate MSE between privacy-aware and non-private GP for each seed
+                privacy_mse_all_seeds = [(pred - nonprivate_mean_np)**2 for pred in pred_means_all_seeds]
+                privacy_mse_array = np.array(privacy_mse_all_seeds)
+                privacy_mse_mean = privacy_mse_array.mean(axis=0)
+                
+                # Use 95% percentile bounds for MSE
+                mse_percentile_lower = np.percentile(privacy_mse_array, 2.5, axis=0)
+                mse_percentile_upper = np.percentile(privacy_mse_array, 97.5, axis=0)
+                
+                privacy_mse_means_all_components.append(privacy_mse_mean)
+                privacy_mse_percentile_bounds_all_components.append((mse_percentile_lower, mse_percentile_upper))
+            else:
+                privacy_means_all_components.append(None)
+                privacy_percentile_bounds_all_components.append(None)
+                privacy_mse_means_all_components.append(None)
+                privacy_mse_percentile_bounds_all_components.append(None)
+        
+        # Create separate prediction figure
+        pred_fig, pred_axes = plt.subplots(1, n_components, figsize=(5*n_components, 6))
+        if n_components == 1:
+            pred_axes = [pred_axes]
+        
+        for comp_idx in range(n_components):
+            ax = pred_axes[comp_idx]
+            
+            # Plot base data
+            private_mask_train = (train_x_np >= 1) & (train_x_np < 2)
+            true_line, = ax.plot(train_x_np, train_y_all_components[comp_idx], 'k', linewidth=1.5, label='True')
+            private_line, = ax.plot(train_x_np[private_mask_train], train_y_all_components[comp_idx][private_mask_train], 
+                                  'r', linewidth=1.5, label='Private segment')
+            
+            # Plot privacy-aware predictions if available
+            if privacy_means_all_components[comp_idx] is not None:
+                mean_of_means = privacy_means_all_components[comp_idx]
+                percentile_lower, percentile_upper = privacy_percentile_bounds_all_components[comp_idx]
+                
+                ax.fill_between(
+                    test_x_np, percentile_lower, percentile_upper,
+                    color='green', alpha=0.2, ec='None'
+                )
+                privacy_line, = ax.plot(test_x_np, mean_of_means, 'g-', linewidth=1.8, 
+                                      label='Privacy-aware GP prediction (Ours)')
+            
+            # Plot non-private GP baseline
+            nonprivate_mean_np = nonprivate_means_all_components[comp_idx]
+            nonprivate_lower, nonprivate_upper = nonprivate_percentile_bounds_all_components[comp_idx]
+            ax.fill_between(
+                test_x_np, nonprivate_lower, nonprivate_upper,
+                color='blue', alpha=0.2, ec='None'
+            )
+            nonprivate_baseline_line, = ax.plot(test_x_np, nonprivate_mean_np, 'b--', linewidth=1.8, 
+                                        label='Non-private GP prediction')
+            
+            # Setup subplot
+            ax.set_title(f'{component_names[comp_idx]}', fontsize=22)
+            ax.set_xlabel('Time $T/T_{orb}$', fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.grid(True, alpha=0.3)
+        
+        # Legend for prediction plot
+        pred_legend_elements = [true_line, private_line, privacy_line, nonprivate_baseline_line]
+        pred_legend_labels = ['True', 'Private segment', 'Privacy-aware GP prediction (Ours)', 'Non-private GP prediction']
+        pred_fig.legend(handles=pred_legend_elements, labels=pred_legend_labels, 
+                       loc='lower center', bbox_to_anchor=(0.5, -0.005), 
+                       ncol=4, fontsize=20)
+        
+        # Title and save for prediction plot
+        pred_fig.suptitle(f'Privacy-aware GP (H={alpha}K) predictions averaged over {len(seed_results)} replications', 
+                         color='blue', fontsize=22, fontweight='bold', y=0.98)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.85, bottom=0.25)
+        pred_fig_path = os.path.join(figs_dir, f'satellite_pa_averaged_predictions_alpha_{alpha}_seeds_{len(seed_results)}.png')
+        pred_fig.savefig(pred_fig_path, dpi=300, bbox_inches='tight')
+        print(f"Privacy-aware predictions figure for α={alpha} saved to: {pred_fig_path}")
+        plt.close(pred_fig)
+        
+        # Create separate MSE figure
+        mse_fig, mse_axes = plt.subplots(1, n_components, figsize=(5*n_components, 6))
+        if n_components == 1:
+            mse_axes = [mse_axes]
+        
+        for comp_idx in range(n_components):
+            ax = mse_axes[comp_idx]
+            
+            # Plot MSE with percentile-based confidence intervals
+            if privacy_mse_means_all_components[comp_idx] is not None:
+                privacy_mse_mean = privacy_mse_means_all_components[comp_idx]
+                mse_percentile_lower, mse_percentile_upper = privacy_mse_percentile_bounds_all_components[comp_idx]
+                
+                ax.fill_between(
+                    test_x_np, 
+                    mse_percentile_lower, 
+                    mse_percentile_upper,
+                    color='green', alpha=0.2, ec='None'
+                )
+                privacy_mse_line, = ax.plot(test_x_np, privacy_mse_mean, 'g-', linewidth=1.8, 
+                          label='MSE between Privacy-aware GP and Non-private GP')
+            
+            # Setup subplot
+            ax.set_title(f'{component_names[comp_idx]}', fontsize=22)
+            ax.set_xlabel('Time $T/T_{orb}$', fontsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=16)
+            ax.grid(True, alpha=0.3)
+        
+        # Legend for MSE plot
+        mse_legend_elements = [privacy_mse_line]
+        mse_legend_labels = ['MSE between Privacy-aware GP and Non-private GP']
+        mse_fig.legend(handles=mse_legend_elements, labels=mse_legend_labels,
+                      loc='lower center', bbox_to_anchor=(0.5, -0.01),
+                      ncol=1, fontsize=20)
+        
+        # Title and save for MSE plot
+        mse_fig.suptitle(f'MSE between privacy-aware GP (H={alpha}K) and non-private GP averaged over {len(seed_results)} replications', 
+                        color='blue', fontsize=22, fontweight='bold', y=0.98)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.85, bottom=0.25)
+        mse_fig_path = os.path.join(figs_dir, f'satellite_pa_averaged_mse_alpha_{alpha}_seeds_{len(seed_results)}.png')
+        mse_fig.savefig(mse_fig_path, dpi=300, bbox_inches='tight')
+        print(f"Privacy-aware MSE figure for α={alpha} saved to: {mse_fig_path}")
+        plt.close(mse_fig)
+    
+    return seed_results
+
+
+def run(
+        test_x=None,
+        seeds=range(5),
+        algs=['privacy-aware', 'dp-cloaking', 'exclude', 'attack'],
+        alphas=[0.1, 0.5, 0.9],
+        epsilons=[0.5, 1],
+        sampling_interval=5,
+        verbose=True,
+        plot_seed=0,  # Seed to use for plotting
+        run_again=False, # If True, run experiments again even if saved results exist
+    ):
+    """
+    Run the full experimental pipeline: generate data, run models with multiple seeds,
+    compute metrics, save to CSV, and generate plots.
+    """
+    # Paths for results
+    results_path = os.path.join(results_dir, 'satellite_all_results.pkl')
+    metrics_path = os.path.join(results_dir, 'satellite_all_metrics.pkl')
+    
+    # Run experiments or load existing results
+    if not os.path.exists(results_path) or not os.path.exists(metrics_path) or run_again:
+        aggregate_metrics = run_multiple_seeds(
+            test_x=test_x,
+            seeds=seeds,
+            algs=algs,
+            alphas=alphas,
+            epsilons=epsilons,
+            sampling_interval=sampling_interval,
+            verbose=verbose,
+            run_again=run_again,
+        )
+        
+        # Save metrics summary to CSV
+        csv_path = save_metrics_to_csv(
+            aggregate_metrics,
+            algs=algs,
+            alphas=alphas,
+            epsilons=epsilons
+        )
+    else:
+        # Load existing aggregate metrics
+        with open(metrics_path, 'rb') as f:
+            aggregate_metrics = pickle.load(f)
+
+        csv_path = os.path.join(results_dir, 'satellite_metrics.csv')
+    
+    # Plot results for the specified seed
+    seed_results = plot_privacy_results(
+        seed=plot_seed,
+        algs=algs,
+        alphas=alphas,
+        epsilons=epsilons,
+        run_again=False  # We already checked run_again above
+    )
+    
+    return aggregate_metrics, csv_path, seed_results
+
+
+def run_with_averaged_plots(
+        test_x=None,
+        seeds=range(5),
+        averaged_seeds=range(10),  # Seeds to use for averaged plots
+        algs=['privacy-aware', 'dp-cloaking', 'exclude', 'attack'],
+        alphas=[0.1, 0.5, 0.9],
+        epsilons=[0.5, 1],
+        sampling_interval=5,
+        verbose=True,
+        plot_seed=0,
+        plot_averaged=True,  # New parameter to enable averaged plots
+        run_again=False,
+    ):
+    """
+    Extended run function that includes averaged privacy-aware plots.
+    
+    :param seeds: Seeds for main experiment and metrics computation
+    :param averaged_seeds: Seeds to use for averaging in the averaged plots.
+    """
+    
+    # Convert to lists for easier handling
+    seeds_list = list(seeds)
+    averaged_seeds_list = list(averaged_seeds)
+    
+    # First, run the main experiments for the specified seeds (for metrics and individual plots)
+    print(f"\nRunning main experiments for {len(seeds_list)} seeds: {seeds_list[:10]}{'...' if len(seeds_list) > 10 else ''}")
+    aggregate_metrics, csv_path, seed_results = run(
+        test_x=test_x,
+        seeds=seeds,  # Use only the main seeds for metrics
+        algs=algs,
+        alphas=alphas,
+        epsilons=epsilons,
+        sampling_interval=sampling_interval,
+        verbose=verbose,
+        plot_seed=plot_seed,
+        run_again=run_again,
+    )
+    
+    # Now handle averaged plots if requested
+    if plot_averaged and 'privacy-aware' in algs:
+        # Check which seeds we need for averaging that aren't in the main seeds
+        missing_seeds = set(averaged_seeds_list) - set(seeds_list)
+        
+        if missing_seeds:
+            print(f"\n{'='*60}")
+            print(f"Need to run additional {len(missing_seeds)} seeds for averaging")
+            print(f"Missing seeds: {sorted(missing_seeds)[:10]}{'...' if len(missing_seeds) > 10 else ''}")
+            print(f"{'='*60}")
+            
+            # Check if we already have some results for these missing seeds
+            results_path = os.path.join(results_dir, 'satellite_all_results.pkl')
+            
+            existing_missing_seeds = set()
+            if os.path.exists(results_path) and not run_again:
+                # Load existing results to check which seeds we already have
+                with open(results_path, 'rb') as f:
+                    existing_results = pickle.load(f)
+                existing_seeds = set(r['seed'] for r in existing_results if 'seed' in r)
+                existing_missing_seeds = missing_seeds & existing_seeds
+                actually_missing_seeds = missing_seeds - existing_seeds
+                
+                if existing_missing_seeds:
+                    print(f"Found existing results for {len(existing_missing_seeds)} seeds: {sorted(existing_missing_seeds)[:10]}...")
+                
+                if actually_missing_seeds:
+                    print(f"Still need to run {len(actually_missing_seeds)} new seeds: {sorted(actually_missing_seeds)[:10]}...")
+                    missing_seeds = actually_missing_seeds
+                else:
+                    print("All missing seeds already have results!")
+                    missing_seeds = set()
+            
+            # Run experiments for truly missing seeds
+            if missing_seeds:
+                print(f"\nRunning privacy-aware experiments for {len(missing_seeds)} additional seeds...")
+                
+                # Get data once
+                data = get_satellite_data()
+                
+                # Get privacy indices
+                privacy_idx = get_privacy_indices(
+                    data_time=data['time'], 
+                    sampling_interval=sampling_interval,
+                )
+                
+                # Run experiments for missing seeds
+                additional_results = []
+                additional_metrics = []
+                
+                for i, seed in enumerate(sorted(missing_seeds)):
+                    if verbose:
+                        print(f"\n[{i+1}/{len(missing_seeds)}] Running seed {seed} for averaging...")
+                    
+                    # Run experiment for this seed (only privacy-aware)
+                    results, metrics = run_with_metrics(
+                        seed=seed,
+                        privacy_idx=privacy_idx,
+                        test_x=test_x,
+                        algs=['privacy-aware'],  # Only need privacy-aware for averaging
+                        alphas=alphas,
+                        epsilons=[],  # No DP methods needed
+                        sampling_interval=sampling_interval,
+                        verbose=verbose,
+                    )
+                    
+                    additional_results.append(results)
+                    additional_metrics.append(metrics)
+                
+                # Append new results to existing results file
+                if os.path.exists(results_path):
+                    with open(results_path, 'rb') as f:
+                        all_results = pickle.load(f)
+                    all_results.extend(additional_results)
+                else:
+                    all_results = additional_results
+                
+                # Save updated results
+                with open(results_path, 'wb') as f:
+                    pickle.dump(all_results, f)
+                print(f"\nUpdated results saved with {len(additional_results)} new seeds")
+                
+                # Also update metrics file
+                metrics_path = os.path.join(results_dir, 'satellite_all_metrics.pkl')
+                if os.path.exists(metrics_path):
+                    with open(metrics_path, 'rb') as f:
+                        all_metrics = pickle.load(f)
+                    all_metrics.extend(additional_metrics)
+                else:
+                    all_metrics = additional_metrics
+                    
+                with open(metrics_path, 'wb') as f:
+                    pickle.dump(all_metrics, f)
+                print(f"Updated metrics saved with {len(additional_metrics)} new seeds")
+        
+        # Now generate averaged privacy-aware plots
+        print(f"\nGenerating averaged privacy-aware plots using {len(averaged_seeds_list)} seeds")
+        averaged_results = plot_averaged_privacy_results(
+            test_x=test_x,
+            seeds=averaged_seeds_list,  # Pass all the averaged_seeds
+            alphas=alphas,
+            confidence_level=0.95,
+            sampling_interval=sampling_interval,
+            run_again=False,  # Use existing results
+        )
+    
+    return aggregate_metrics, csv_path, seed_results
+
+
 if __name__ == "__main__":
     # Set parameters
     seeds = range(20)  # Run with 20 seeds: 0, 1, 2, 3, 4, ..., 19
+    averaged_seeds = range(100)  # Use 10 seeds for averaged plots
     sampling_interval = 5
     test_x = torch.linspace(0, 3, 301).view(-1, 1)[::sampling_interval]
     algs = ['privacy-aware', 'dp-cloaking', 'exclude', 'attack']
@@ -1277,17 +1735,33 @@ if __name__ == "__main__":
     run_again = False # Set to True to regenerate all results
    
     
-    # Run the full experimental pipeline
-    aggregate_metrics, csv_path, seed_results = run(
+    # # Run the full experimental pipeline
+    # aggregate_metrics, csv_path, seed_results = run(
+    #     test_x=test_x,
+    #     seeds=seeds,
+    #     algs=algs,
+    #     alphas=alphas,
+    #     epsilons=epsilons,
+    #     sampling_interval=sampling_interval,
+    #     verbose=verbose,
+    #     plot_seed=plot_seed,
+    #     run_again=run_again,
+    # )
+    
+    # Run the extended experimental pipeline with averaged plots
+    aggregate_metrics, csv_path, seed_results = run_with_averaged_plots(
         test_x=test_x,
         seeds=seeds,
+        averaged_seeds=averaged_seeds,
         algs=algs,
         alphas=alphas,
         epsilons=epsilons,
         sampling_interval=sampling_interval,
         verbose=verbose,
         plot_seed=plot_seed,
+        plot_averaged=True,  # Enable averaged plots
         run_again=run_again,
     )
     
+
     print(f"Experiments completed. Results saved to: {csv_path}")

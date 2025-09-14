@@ -1017,7 +1017,7 @@ def plot_privacy_results(
             for alg in dp_algs:
                 for i, eps in enumerate(epsilons):
                     # Create label with epsilon and delta values
-                    custom_label = f'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
+                    custom_label = rf'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
                     custom_color = eps_colors[i % len(eps_colors)]
                     
                     # Add predictions
@@ -1066,7 +1066,7 @@ def plot_privacy_results(
             for alg in dp_algs:
                 for i, eps in enumerate(epsilons):
                     # Create label with epsilon and delta values
-                    custom_label = f'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
+                    custom_label = rf'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
                     custom_color = eps_colors[i % len(eps_colors)]
                     
                     # Add predictions
@@ -1173,7 +1173,7 @@ def plot_privacy_results(
                         axins.set_ylim(y_min - y_padding, y_max + y_padding)
                     
                     # Add a title to the inset axes
-                    axins.set_title(f"Zoomed Region $T/T_{{orb}} \in $[{zoom_start}, {zoom_end}]", fontsize=12)
+                    axins.set_title(rf"Zoomed Region $T/T_{{orb}} \in $[{zoom_start}, {zoom_end}]", fontsize=12)
                     
                     # Add a light box in the main figure showing what's being zoomed
                     # Use light gray instead of blue

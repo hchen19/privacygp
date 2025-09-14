@@ -1054,9 +1054,9 @@ def plot_privacy_results(
             # Format target_scale as power of 10 if it's a power of 10
             if np.log10(target_scale).is_integer():
                 power = int(np.log10(target_scale))
-                scale_str = f'$10^{power}$'
+                scale_str = rf'$10^{power}$'
             else:
-                scale_str = f'{target_scale}'
+                scale_str =  f'{target_scale}'
             
             ax.set_ylabel(f'Total Personal Income (*{scale_str})', fontsize=14)
         
@@ -1201,7 +1201,7 @@ def plot_privacy_results(
             for alg in dp_algs:
                 for j, eps in enumerate(epsilons):
                     # Create label with epsilon and delta values
-                    custom_label = f'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
+                    custom_label = rf'($\epsilon$={eps}, $\delta$=0.01)-{viz_settings[alg]["label"]}'
                     custom_color = eps_colors[j % len(eps_colors)]
                     
                     # Add predictions
