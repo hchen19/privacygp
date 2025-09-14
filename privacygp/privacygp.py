@@ -1,13 +1,7 @@
 import torch
 import gpytorch
 from gpytorch.utils.lanczos import lanczos_tridiag
-# from gpytorch.lazy import DiagLazyTensor, SumLazyTensor, AddedDiagLazyTensor, LowRankRootLazyTensor
-try:
-    from gpytorch.lazy import DiagLazyTensor
-except ImportError:
-    from gpytorch.lazy.diag_lazy_tensor import DiagLazyTensor
-
-from gpytorch.lazy import SumLazyTensor, AddedDiagLazyTensor, LowRankRootLazyTensor
+from gpytorch.lazy import DiagLazyTensor, SumLazyTensor, AddedDiagLazyTensor, LowRankRootLazyTensor
 
 
 from .train import GPModelTrainer
